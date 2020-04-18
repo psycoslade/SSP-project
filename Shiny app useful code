@@ -1,0 +1,41 @@
+shiny app
+header <- dashboardHeader(1)
+sidear <- dashboardSidebar(1)
+body <- dashboardBody(1)
+ui <- dashboardPage(header, sidebar, body)
+server <- function(input, output) {}
+shiny::shinyAp(ui,server)
+-------------------------
+Dashboardheader(
+     dropdownMenu(type = "messages/ notifications/tasks, messageItem( blablabla)
+)
+---------------------------
+dahsboardbody(
+   tabItems(
+        tabItem(tabName = "data",
+           "input something"),
+)
+-----------------------------------------
+body inputs
+actionButton()
+checkboxInput()
+dateInput()
+numericInput()
+radioButtons()
+selectInput()
+sliderInput()
+textInput()
+------------------------
+render function shiny app
+renderPrint()
+renderText()
+renderTable()
+renderDataTable()
+renderPlot()
+renderImage()
+renderUI()
+---------------------
+always has:
+inputID = 
+Label = 
+choices =
