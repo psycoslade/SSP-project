@@ -71,3 +71,19 @@ width = 6,
 title = "some title,
 "some more text"
 ))
+--------------------------
+#customization and appearance
+dashboardPage(skin = "#whatever color")
+#CSS two ways (external coding)
+dashboardBody(
+   tags$head(
+          tags$link(rel = "stylesheet",
+          type = "text/css",
+          href = "my_style.css")
+#CSS second way (internal coding)
+dashboardBody(
+     tags$head(
+          tags$style(
+          HTML('
+          \\CSS here
+          ')
