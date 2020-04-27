@@ -90,4 +90,22 @@ dashboardBody(
  #\\CSS here #this is how to edit text to be bold
  'font-weight: bold; 
  }'
-   
+ # this is how to do icons
+ icon(name = "bicycle",
+ lib = font-awesome")
+ #icons can also be changed in size or move
+ icon(name = "refresh",
+ class = "fa-5x fa-spin")
+ # fa stands for font awesome and 5x specifies size
+ #fa-spin indicates spinning
+ #find more icons on font awesome icons
+ 
+ #status and color 
+ #these are some status values
+ #primary == Dark blue
+ #success == Green
+ #info == light blue
+ #warning == orange
+ #danger == red
+ # can also see ?validStatus
+ # cal see colors ?validColors
