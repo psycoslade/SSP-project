@@ -87,3 +87,7 @@ dashboardBody(
           HTML('
           \\CSS here
           ')
+ #\\CSS here #this is how to edit text to be bold
+ 'font-weight: bold; 
+ }'
+   
