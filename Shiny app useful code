@@ -39,3 +39,35 @@ always has:
 inputID = 
 Label = 
 choices =
+------------------------------
+renderInfBox() -- infoBoxOutput()
+renderValueBox() -- valueBoxOutput()
+-------------------------------------
+#layout options, there are row based, column based and mixed
+#row based (total width = 12)
+fluidRow(
+box(
+   width = 12,
+   title = "This boxtakes up the whle row!",
+   "A 12 column box."
+   ))
+#row based but two boxes
+fluidRow(
+box(
+  width = 6,
+  title = "whatever",
+  "blablabla"
+  ),
+box(
+   width = 6,
+   title = "whats good"
+   "blablabla"
+))
+#mixed layout (same as column but width = #not NULL)
+fluidRow(
+column(width = 6,
+box(
+width = 6,
+title = "some title,
+"some more text"
+))
