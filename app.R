@@ -22,6 +22,8 @@ library(xlsx)
 library(data.table)
 library(lubridate)
 library(stringr)
+library(htmlwidgets)
+library(scales)
 
 # preparing the data
 
@@ -63,8 +65,18 @@ boundaries_income <- geo_join(boundaries, data, "Gemeentecode", "statcode", how 
 # include Leistert data
 
 # Leistert_df <- fread(file = "data_prelim.csv", sep = ";")
+
 Leistert_df <- fread(file = "CASE_1_LEISTERT_Final_with_Lifestyle.csv", sep = ";")
 colnames(Leistert_df) <- gsub(" ", "_", colnames(Leistert_df))
+
+
+### Test ###
+
+# create month and year column 
+
+Leistert_df$Aankomst <- as.Date(Leistert_df$Aankomst) 
+Leistert_df$month <- strftime(Leistert_df$Aankomst, "%m")
+Leistert_df$year <- strftime(Leistert_df$Aankomst, "%Y")
 
 # group Leistert_df per Gemeente
 
@@ -72,11 +84,15 @@ Leistert_df_gemeente <- Leistert_df %>%
   group_by(Gemeente_Name) %>% 
   tally() %>% rename("number_of_visitors" = n)
 
+###
+
 # join Leistert_df_gemeente to boundaries_income
 
 boundaries_income <- geo_join(boundaries_income, Leistert_df_gemeente, "Gemeentenaam", "Gemeente_Name", how = "left")
 
 # how to filter polygons object
+
+
 
 # using shiny
 
@@ -104,15 +120,18 @@ ui <- fluidPage(
       tabPanel("Map", leafletOutput("map")),
       tabPanel("Table", DT::dataTableOutput("table"), tableOutput("table2")),
       tabPanel("Plot", # fluidRow(...)
-               plotOutput("plot"), plotOutput("plot2"), plotOutput("plot3"))
+               plotOutput("plot"), plotOutput("plot2"), plotOutput("plot3"),
+               plotOutput("plot4"))
       )
     )
   )
 )
+
 server <- function(input, output, session) {
   
   
-
+  css_fix <- "div.info.legend.leaflet-control br {clear: both;}"
+  html_fix <- htmltools::tags$style(type = "text/css", css_fix) 
   
   
   output$map <- renderLeaflet({
@@ -128,11 +147,11 @@ server <- function(input, output, session) {
                              boundaries_income$HuishoudensTotaal_28) %>% map(htmltools::HTML)
     popup_inwoner <- str_c("<strong>", boundaries_income$Gemeentenaam, "</strong>", "<br/>", "Inwoner Total: ",
                            boundaries_income$AantalInwoners_5) %>% map(htmltools::HTML)
-    popup_visitors <- str_c("<strong>", boundaries_income$Gemeentenaam, "</strong>", "<br/>", "Visitors Total: ",
+    popup_visitors <- str_c("<strong>", boundaries_income$Gemeentenaam, "</strong>", "<br/>", "Cumulated Visitors Total: ",
                             boundaries_income$number_of_visitors) %>% map(htmltools::HTML)
     
-    boundaries_income %>% 
-      leaflet() %>% 
+    boundaries_income  %>%
+      leaflet() %>% # prependContent(html_fix) %>%  not working within Shiny
       addTiles(group = "OSM") %>% 
       addProviderTiles("CartoDB", group = "Carto") %>% 
       addProviderTiles("Esri", group = "Esri") %>%
@@ -156,10 +175,10 @@ server <- function(input, output, session) {
                   label = ~popup_visitors,
                   highlight = highlightOptions(weight = 5, color = "white", bringToFront = TRUE), group = "Visitors") %>% 
       addLegend(pal = NL_pal_4, values = ~boundaries_income@data$number_of_visitors,
-                group = "Visitors", position = "bottomleft", title = "No of Visitors", opacity = 1) %>% 
+                group = "Visitors", position = "bottomleft", title = "Cumulated number of visitors", opacity = 1) %>% 
       addLayersControl(baseGroups = c("OSM", "Carto", "Esri"), 
-                       overlayGroups = c("Inkomen", "Huishouden", "Inwoner", "Visitors")) %>%  showGroup("Carto") %>%
-      hideGroup(c("Huishouden", "Inwoner", "Visitors")) 
+                       overlayGroups = c("Inkomen", "Huishouden", "Inwoner", "Visitors")) %>% showGroup("Carto") %>%
+      hideGroup(c("Huishouden", "Inwoner", "Visitors"))
   })
   
   table_df <- as.data.frame(boundaries_income) %>% select(c("Gemeentenaam", "Gemeentecode","GeboorteRelatief_25", "AantalInwoners_5",
@@ -197,7 +216,7 @@ server <- function(input, output, session) {
     
     ggplot(Leistert_df_grouped(), mapping = aes(x = reorder(Gemeente_Name, -n), y = n, fill = n)) +
       geom_bar(stat = "identity") +
-      scale_fill_gradient2(low="red", mid='snow3', high="darkgreen", space = "Lab") +
+      scale_fill_gradient2(low=muted("red"), mid='white', high=muted("blue"), space = "Lab") +
       ggtitle("Number of Visitors") +
       xlab("Gemeente") +
       ylab("Number of Bookings")
@@ -209,6 +228,7 @@ server <- function(input, output, session) {
   # create new column with facility type
   
   Leistert_df$facility_type_new <- str_extract(Leistert_df$Facility_Type, "[A-Z]+")
+
   
   Leistert_df_grouped_2 <- reactive({
       dplyr::filter(Leistert_df, year == input$year, facility_type_new == input$facility) %>% 
@@ -225,7 +245,7 @@ server <- function(input, output, session) {
     ggplot(Leistert_df_grouped_2(), mapping = aes(x = reorder(Gemeente_Name, -avg_stay), y = avg_stay, fill = avg_stay)) +
       scale_fill_gradient2(low="darkgreen", high="red", space = "Lab") +
       geom_bar(stat = "identity") +
-      ggtitle("Average Length of Stay per Gemeente") +
+      ggtitle("Average Length of Stay per Gemeente per Accomodation") +
       xlab("Gemeente") +
       ylab("Avg Length of Stay")
   })
@@ -243,9 +263,13 @@ server <- function(input, output, session) {
     output$table2 <- renderTable({Leistert_df_grouped_3()
   
   })
-    
-    updateSelectizeInput(session, 'ZIP', choices = Leistert_df$POSTCODE, server = TRUE)
+  
 
+    
+    
+    updateSelectizeInput(session, 'ZIP', choices = Leistert_df$POSTCODE, server = TRUE, )
+    
+    
   # display visitors per month in a given year
   
 Leistert_df_grouped_4 <- reactive({
@@ -257,9 +281,47 @@ Leistert_df_grouped_4 <- reactive({
 
 output$plot3 <- renderPlot({ggplot(Leistert_df_grouped_4(), mapping = aes(x = month, y = n, fill = n)) +
     scale_fill_gradient2(low="green", high="darkgreen", space = "Lab") +
-    geom_bar(stat = "identity")
+    geom_bar(stat = "identity") +
+    ggtitle("Monthly Visitors in total per Year") +
+    xlab("Month") +
+    ylab("Number of Visitors")
 
 })
+
+# as.numeric(gsub(",", ".", Percentage)) change commas to periods
+# then calculate label positions
+
+Leistert_df_ls <- Leistert_df %>% select(POSTCODE, Buurt_Name, Gemeente_Name, avontuurzoekers:stijlzoekers) %>% 
+  gather(key = "Groups", value = "Percentage", -POSTCODE, -Buurt_Name, -Gemeente_Name) %>% unique()
+
+Leistert_df_ls$Percentage <- as.numeric(gsub(",", ".", Leistert_df_ls$Percentage))
+
+Leistert_df_ls <- Leistert_df_ls %>% 
+  group_by(Groups) %>% 
+  mutate(pos = cumsum(Percentage) - Percentage/2)
+  
+
+# group_by(year) %>% mutate(pos = cumsum(quantity)- quantity/2)
+
+
+Leistert_df_grouped_5 <- reactive({Leistert_df_ls %>% 
+    dplyr::filter(POSTCODE == input$ZIP) 
+  
+    
+})
+
+output$plot4 <- renderPlot({
+  ggplot(Leistert_df_grouped_5(), mapping = aes(x = "", y = Percentage, fill = Groups)) +
+    geom_bar(stat="identity", width = 1, color = "white") +
+    coord_polar("y", start=0) + 
+    theme_void() + # remove background, grid, numeric labels
+    geom_text(data=subset(Leistert_df_grouped_5(), Percentage != 0), aes(label = paste0(round(Percentage), "%")), # only use values unequal to zero
+              color = "white", size=5, position = position_stack(vjust = 0.5)) +
+    ggtitle(paste("Distribution of Lifestyles in", input$ZIP))
+   
+
+    
+  })
 
 }
 shinyApp(ui, server)
