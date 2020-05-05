@@ -29,7 +29,7 @@ library(scales)
 
 # search CBS data
 
-df_cbs_toc <- cbs_get_toc() %>% filter(str_detect(Title, "code"))
+df_cbs_toc <- cbs_get_toc() %>% filter(str_detect(Title, "Kerncijfers"))
 
 
 # Find out which columns are available
@@ -37,9 +37,11 @@ metadata <- cbs_get_meta("83765NED")
 print(metadata$DataProperties$Key)
 
 data <- cbs_get_data("83765NED", 
-                     select=c("WijkenEnBuurten","GeboorteRelatief_25", "AantalInwoners_5",
+                     select=c("WijkenEnBuurten","Gemeentenaam_1", "SoortRegio_2", 
+                              "AantalInwoners_5", "k_0Tot15Jaar_8", "k_15Tot25Jaar_9", 
+                              "k_25Tot45Jaar_10", "k_45Tot65Jaar_11", "k_65JaarOfOuder_12", "GeboorteRelatief_25", 
                               "Gescheiden_15", "HuishoudensTotaal_28", "AantalInkomensontvangers_64", "GemiddeldInkomenPerInkomensontvanger_65",
-                              "GemiddeldInkomenPerInwoner_66", "k_40PersonenMetLaagsteInkomen_67", 
+                              "GemiddeldInkomenPerInwoner_66", "k_65JaarOfOuder_12", "k_40PersonenMetLaagsteInkomen_67", 
                               "k_20PersonenMetHoogsteInkomen_68", "k_40HuishoudensMetLaagsteInkomen_70", "k_20HuishoudensMetHoogsteInkomen_71",
                               "HuishoudensMetEenLaagInkomen_72")) %>%
   mutate(WijkenEnBuurten = str_trim(WijkenEnBuurten),
@@ -59,12 +61,15 @@ boundaries_income <- boundaries@data %>%
   left_join(data, by = c("Gemeentecode" = "statcode"))
 
 
-
 boundaries_income <- geo_join(boundaries, data, "Gemeentecode", "statcode", how = "left")
 
 # include Leistert data
 
+# processed data by Stefan
 # Leistert_df <- fread(file = "data_prelim.csv", sep = ";")
+
+
+# unprocessed Leistert df
 
 Leistert_df <- fread(file = "CASE_1_LEISTERT_Final_with_Lifestyle.csv", sep = ";")
 colnames(Leistert_df) <- gsub(" ", "_", colnames(Leistert_df))
@@ -90,9 +95,6 @@ Leistert_df_gemeente <- Leistert_df %>%
 
 boundaries_income <- geo_join(boundaries_income, Leistert_df_gemeente, "Gemeentenaam", "Gemeente_Name", how = "left")
 
-# how to filter polygons object
-
-
 
 # using shiny
 
@@ -106,7 +108,11 @@ ui <- fluidPage(
       selectizeInput(inputId = "ZIP",
                 label = "Select a ZIP Code:",
                 choices = NULL,
-                options = list(placeholder = '6211RT', maxItems = 1, maxOptions = 5)),
+                options = list(maxItems = 1, maxOptions = 5)),
+      selectizeInput(inputId = "Gemeente",
+                     label = "Choose a Gemeente",
+                     choices = NULL,
+                     options = list(maxItems = 1, maxOptions = 5)),
       selectInput(
           inputId = "year", 
           label = "Select time period:", 
@@ -117,11 +123,23 @@ ui <- fluidPage(
     ),
     mainPanel(
       tabsetPanel(
-      tabPanel("Map", leafletOutput("map")),
-      tabPanel("Table", DT::dataTableOutput("table"), tableOutput("table2")),
-      tabPanel("Plot", # fluidRow(...)
-               plotOutput("plot"), plotOutput("plot2"), plotOutput("plot3"),
-               plotOutput("plot4"))
+      tabPanel("Map", uiOutput("leaf")),
+      tabPanel("Table", 
+               fluidRow(column(
+                 DT::dataTableOutput("table"), tableOutput("table2"), width = 11)
+               )
+               ),
+      tabPanel("Plot", 
+               fluidRow(
+                 splitLayout(cellWidths = c("65%", "35%"),
+                             plotOutput("plot"), plotOutput("plot4")
+                             ),
+                 splitLayout(cellWidths = c("65%", "35%"),
+                             plotOutput("plot2"), plotOutput("plot5")
+                             ),
+                 ),
+               plotOutput("plot3")
+               )
       )
     )
   )
@@ -130,9 +148,12 @@ ui <- fluidPage(
 server <- function(input, output, session) {
   
   
-  css_fix <- "div.info.legend.leaflet-control br {clear: both;}"
-  html_fix <- htmltools::tags$style(type = "text/css", css_fix) 
+  #css_fix <- "div.info.legend.leaflet-control br {clear: both;}" not working inside shiny
+  #html_fix <- htmltools::tags$style(type = "text/css", css_fix) 
   
+  output$leaf <- renderUI({
+    leafletOutput("map", width = "100%", height = 900) # option to adjust size of leaflet map
+  })
   
   output$map <- renderLeaflet({
     
@@ -159,7 +180,7 @@ server <- function(input, output, session) {
                   label = ~popup_inkom,
                   highlight = highlightOptions(weight = 5, color = "white", bringToFront = TRUE), group = "Inkomen") %>% 
       addLegend(pal = NL_pal, values = ~boundaries_income@data$GemiddeldInkomenPerInwoner_66,
-                group = "Inkomen", position = "bottomleft", title = "Gemiddeld Inkomen Per Inwoner",
+                group = "Inkomen", position = "bottomleft", title = "Mean Income in Thousands",
                 labFormat = labelFormat(prefix = "€"), opacity = 1) %>% 
       addPolygons(weight = 2,fillOpacity = 0.5, color = ~NL_pal_2(HuishoudensTotaal_28),
                   label = ~popup_huishouden,
@@ -191,7 +212,7 @@ server <- function(input, output, session) {
                           "GemiddeldInkomenPerInkomensontvanger", "40HuishoudensMetLaagsteInkomen")
   
   output$table <- DT::renderDataTable({table_df
-  })
+  }, options = list(scrollX = TRUE)) # option to be able to scroll within the table
   
   
   # extract month and year 
@@ -217,9 +238,9 @@ server <- function(input, output, session) {
     ggplot(Leistert_df_grouped(), mapping = aes(x = reorder(Gemeente_Name, -n), y = n, fill = n)) +
       geom_bar(stat = "identity") +
       scale_fill_gradient2(low=muted("red"), mid='white', high=muted("blue"), space = "Lab") +
-      ggtitle("Number of Visitors") +
+      ggtitle(paste("Number of Visitors in", input$year)) +
       xlab("Gemeente") +
-      ylab("Number of Bookings")
+      ylab("Number of Bookings") + theme(axis.text.x = element_text(angle = 45, hjust = 1))
     
   })
   
@@ -243,11 +264,11 @@ server <- function(input, output, session) {
     
    
     ggplot(Leistert_df_grouped_2(), mapping = aes(x = reorder(Gemeente_Name, -avg_stay), y = avg_stay, fill = avg_stay)) +
-      scale_fill_gradient2(low="darkgreen", high="red", space = "Lab") +
+      scale_fill_gradient2(low="darkgreen", mid="snow3", high="red", space="Lab") +
       geom_bar(stat = "identity") +
-      ggtitle("Average Length of Stay per Gemeente per Accomodation") +
+      ggtitle(paste("Average Length of Stay per Gemeente in", input$year, "for", input$facility)) +
       xlab("Gemeente") +
-      ylab("Avg Length of Stay")
+      ylab("Average Length of Stay") + theme(axis.text.x = element_text(angle = 45, hjust = 1))
   })
   
   # filter for Gemeente and Facility Type
@@ -265,9 +286,9 @@ server <- function(input, output, session) {
   })
   
 
+  # serachable input for ZIP Codes
     
-    
-    updateSelectizeInput(session, 'ZIP', choices = Leistert_df$POSTCODE, server = TRUE, )
+    updateSelectizeInput(session, 'ZIP', choices = Leistert_df$POSTCODE, server = TRUE)
     
     
   # display visitors per month in a given year
@@ -280,9 +301,9 @@ Leistert_df_grouped_4 <- reactive({
 })
 
 output$plot3 <- renderPlot({ggplot(Leistert_df_grouped_4(), mapping = aes(x = month, y = n, fill = n)) +
-    scale_fill_gradient2(low="green", high="darkgreen", space = "Lab") +
+    scale_fill_gradient2(low="snow3", mid = "green", high="darkgreen", space = "Lab") +
     geom_bar(stat = "identity") +
-    ggtitle("Monthly Visitors in total per Year") +
+    ggtitle(paste("Monthly Visitors in total in", input$year)) +
     xlab("Month") +
     ylab("Number of Visitors")
 
@@ -296,9 +317,9 @@ Leistert_df_ls <- Leistert_df %>% select(POSTCODE, Buurt_Name, Gemeente_Name, av
 
 Leistert_df_ls$Percentage <- as.numeric(gsub(",", ".", Leistert_df_ls$Percentage))
 
-Leistert_df_ls <- Leistert_df_ls %>% 
-  group_by(Groups) %>% 
-  mutate(pos = cumsum(Percentage) - Percentage/2)
+#Leistert_df_ls <- Leistert_df_ls %>% 
+#  group_by(Groups) %>% 
+#  mutate(pos = cumsum(Percentage) - Percentage/2)
   
 
 # group_by(year) %>% mutate(pos = cumsum(quantity)- quantity/2)
@@ -318,10 +339,84 @@ output$plot4 <- renderPlot({
     geom_text(data=subset(Leistert_df_grouped_5(), Percentage != 0), aes(label = paste0(round(Percentage), "%")), # only use values unequal to zero
               color = "white", size=5, position = position_stack(vjust = 0.5)) +
     ggtitle(paste("Distribution of Lifestyles in", input$ZIP))
+})
    
+ 
+  # plot age distribution per ZIP Code 
+  
+data_age <- data %>% 
+  select("WijkenEnBuurten","Gemeentenaam_1",
+         "SoortRegio_2", "AantalInwoners_5", 
+         "k_0Tot15Jaar_8", "k_15Tot25Jaar_9", 
+         "k_25Tot45Jaar_10", "k_45Tot65Jaar_11",
+         "k_65JaarOfOuder_12") 
 
+# alter column names
+
+colnames(data_age) <- gsub(" ", "_", colnames(data_age))
+
+# change type of column SoortRegio
+
+data_age$SoortRegio_2 <- as.character(data_age$SoortRegio_2) %>%
+  trimws() # trim whitespace, otherwise
+# filtering does not find any matches
+
+data_age <- data_age %>% 
+  filter(SoortRegio_2 == "Gemeente")
+
+
+# join data_age with Leistert_df to get POSTCODE column
+
+#data_age <- data_age %>% 
+#  left_join(select(Leistert_df, POSTCODE, Gemeente_Name), by= c("Gemeentenaam_1" = "Gemeente_Name"))
     
-  })
+# transform dataframe into long format
+
+data_age_long <- data_age %>%
+  select(Gemeentenaam_1, k_0Tot15Jaar_8:k_65JaarOfOuder_12) %>% 
+  gather(key = "Age_Group", value = "Aantal", -Gemeentenaam_1)
+
+#data_age_long$Age_Group <- as.character(data_age_long$Age_Group)
+#
+#library(DataCombine)
+#
+#Replaces <- data.frame(from = c("k_0Tot15Jaar_8", "k_15Tot25Jaar_9", "k_25Tot45Jaar_10",
+#                                "k_45Tot65Jaar_11", "k_65JaarOfOuder_12"), to = c("0-15",
+#                                "15-25", "25-45", "45-65", ">65")) 
+#
+#data_age_long <- FindReplace(data = data_age_long, Var = "Age_Group", replaceData = Replaces,
+#                             from = "from", to = "to", exact = FALSE)
+
+
+# change names of age groups
+
+data_age_long$Age_Group <- str_replace_all(data_age_long$Age_Group, "k_0Tot15Jaar_8", "0-15")
+data_age_long$Age_Group <- str_replace_all(data_age_long$Age_Group, "k_15Tot25Jaar_9", "15-25")
+data_age_long$Age_Group <- str_replace_all(data_age_long$Age_Group, "k_25Tot45Jaar_10", "25-45")
+data_age_long$Age_Group <- str_replace_all(data_age_long$Age_Group, "k_45Tot65Jaar_11", "45-65")
+data_age_long$Age_Group <- str_replace_all(data_age_long$Age_Group, "k_65JaarOfOuder_12", ">65")
+
+# plot age distribution on Gemeente Level
+
+data_age_df <- reactive({
+  data_age_long %>% 
+    dplyr::filter(Gemeentenaam_1 == input$Gemeente)
+})
+
+output$plot5 <- renderPlot({
+  ggplot(data_age_df(), mapping = aes(x = "", y = Aantal, fill = Age_Group)) +
+    geom_bar(stat="identity", width = 1, color = "white") +
+    coord_polar("y", start=0) + 
+    theme_void() + # remove background, grid, numeric labels
+    geom_text(data=subset(data_age_df(), Aantal != 0), aes(label = paste0(round(Aantal / sum(Aantal) * 100), "%")), # only use values unequal to zero
+              color = "white", size=5, position = position_stack(vjust = 0.5)) +
+    ggtitle(paste("Age Distribution in", input$Gemeente))
+
+  }) 
+
+updateSelectizeInput(session, 'Gemeente', choices = data_age_long$Gemeentenaam_1, server = TRUE)
+
 
 }
+
 shinyApp(ui, server)
