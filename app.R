@@ -117,6 +117,12 @@ ui <- fluidPage(
           inputId = "year", 
           label = "Select time period:", 
           choices = 2017:2019),
+      
+      checkboxInput(inputId = "shortest_stays",
+                    label = "Show shortest average stays",
+                    value = FALSE,
+                    width = '100%'),
+      
       selectInput(inputId = "facility",
                   label = "Choose Facility Type",
                   choices = c("TH", "TP", "BUN", "CH" , "HT", "SP", "JP"))
@@ -134,11 +140,17 @@ ui <- fluidPage(
                  splitLayout(cellWidths = c("65%", "35%"),
                              plotOutput("plot"), plotOutput("plot4")
                              ),
-                 splitLayout(cellWidths = c("65%", "35%"),
-                             plotOutput("plot2"), plotOutput("plot5")
-                             ),
+                 conditionalPanel(condition = "input.shortest_stays == 0",
+                                              plotOutput("plot2")
+                                              ),
+                 conditionalPanel(condition = "input.shortest_stays == 1",
+                                              plotOutput("plot2_short")
+                                              ),
+               splitLayout(cellWidths = c("65%", "35%"),
+                           plotOutput("plot3"),  plotOutput("plot5"))
+                            
                  ),
-               plotOutput("plot3")
+               
                )
       )
     )
@@ -222,7 +234,8 @@ server <- function(input, output, session) {
   Leistert_df$year <- strftime(Leistert_df$Aankomst, "%Y")
 
   
-  # show frequency of municipalities per year
+  # show frequency of visits per municipalities per year
+  
   
   Leistert_df_grouped <- reactive({
       dplyr::filter(Leistert_df, year == input$year) %>%   
@@ -239,12 +252,14 @@ server <- function(input, output, session) {
       geom_bar(stat = "identity") +
       scale_fill_gradient2(low=muted("red"), mid='white', high=muted("blue"), space = "Lab") +
       ggtitle(paste("Number of Visitors in", input$year)) +
+      geom_text(aes(label = n, vjust = 1.5), color = "white") +
       xlab("Gemeente") +
       ylab("Number of Bookings") + theme(axis.text.x = element_text(angle = 45, hjust = 1))
     
   })
   
-  # show avg stay per Gemeente per year per facility type
+  # show avg stay per Gemeente per year per facility type (longest/shortest)
+  # create two dfs -> one for longest and one for shortest average length of stay
   
   # create new column with facility type
   
@@ -259,17 +274,44 @@ server <- function(input, output, session) {
       head(20)
     })
   
+  Leistert_df_grouped_2_short <- reactive({
+    dplyr::filter(Leistert_df, year == input$year, facility_type_new == input$facility) %>% 
+      group_by(Gemeente_Name) %>% 
+      summarise(avg_stay = round(mean(Duration_of_Stay), 2)) %>%
+      dplyr::filter(avg_stay > 1) %>% 
+      arrange(avg_stay) %>% 
+      head(20)
+  })
+  
+  # plot average longest stays
   
   output$plot2 <- renderPlot({
     
    
     ggplot(Leistert_df_grouped_2(), mapping = aes(x = reorder(Gemeente_Name, -avg_stay), y = avg_stay, fill = avg_stay)) +
-      scale_fill_gradient2(low="darkgreen", mid="snow3", high="red", space="Lab") +
+      scale_fill_gradient(low="blue", high="red", space="Lab") +
       geom_bar(stat = "identity") +
       ggtitle(paste("Average Length of Stay per Gemeente in", input$year, "for", input$facility)) +
+      geom_text(aes(label = avg_stay, vjust = 1.5), color = "white") +
       xlab("Gemeente") +
       ylab("Average Length of Stay") + theme(axis.text.x = element_text(angle = 45, hjust = 1))
   })
+  
+  # plot averagest shortest stays
+  
+  output$plot2_short <- renderPlot({
+    
+    
+    ggplot(Leistert_df_grouped_2_short(), mapping = aes(x = reorder(Gemeente_Name, -avg_stay), y = avg_stay, fill = avg_stay)) +
+      scale_fill_gradient2(low="blue", high="red", space="Lab") +
+      geom_bar(stat = "identity") +
+      ggtitle(paste("Shortest Average Length of Stay per Gemeente in", input$year, "for", input$facility)) +
+      geom_text(aes(label = avg_stay, vjust = 1.5), color = "white") +
+      xlab("Gemeente") +
+      ylab("Average Length of Stay") + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  })
+  
+  
   
   # filter for Gemeente and Facility Type
   
@@ -286,7 +328,7 @@ server <- function(input, output, session) {
   })
   
 
-  # serachable input for ZIP Codes
+  # serachable input for ZIP Codes on Server-side -> Client-side also possible but handles high in put less well
     
     updateSelectizeInput(session, 'ZIP', choices = Leistert_df$POSTCODE, server = TRUE)
     
@@ -295,14 +337,19 @@ server <- function(input, output, session) {
   
 Leistert_df_grouped_4 <- reactive({
   dplyr::filter(Leistert_df, year == input$year) %>% 
-  #  dplyr::filter(Leistert_df, year == input$year) %>% 
     group_by(year, month) %>%
     tally()
 })
 
+# calculate mean for midpoint for better visualistation
+
+midpoint <- Leistert_df %>% group_by(year, month) %>% tally()
+mid <- mean(midpoint$n)
+
 output$plot3 <- renderPlot({ggplot(Leistert_df_grouped_4(), mapping = aes(x = month, y = n, fill = n)) +
-    scale_fill_gradient2(low="snow3", mid = "green", high="darkgreen", space = "Lab") +
+    scale_fill_gradient2(low="snow3", mid="green", high="darkgreen", space="Lab", midpoint = mid) +
     geom_bar(stat = "identity") +
+    geom_text(aes(label = n, vjust = 1.5), color = "white") +
     ggtitle(paste("Monthly Visitors in total in", input$year)) +
     xlab("Month") +
     ylab("Number of Visitors")
