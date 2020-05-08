@@ -47,21 +47,24 @@ data <- cbs_get_data("83765NED",
   mutate(WijkenEnBuurten = str_trim(WijkenEnBuurten),
          births = GeboorteRelatief_25)
 
+### This part threw an error for some reason
+# not needed anymore
 
 # Retrieve data with municipal boundaries from PDOK
-municipalBoundaries <- st_read("https://geodata.nationaalgeoregister.nl/cbsgebiedsindelingen/wfs?request=GetFeature&service=WFS&version=2.0.0&typeName=cbs_gemeente_2017_gegeneraliseerd&outputFormat=json")
+#municipalBoundaries <- st_read("https://geodata.nationaalgeoregister.nl/cbsgebiedsindelingen/wfs?request=GetFeature&service=WFS&version=2.0.0&typeName=cbs_gemeente_2017_gegeneraliseerd&outputFormat=json", stringAsFactors = FALSE)
 
+#data <- municipalBoundaries %>%
+#  left_join(data, by=c(statcode="WijkenEnBuurten"))
 
-data <- municipalBoundaries %>%
-  left_join(data, by=c(statcode="WijkenEnBuurten"))
+###
 
 boundaries <- geojson_read("https://opendata.arcgis.com/datasets/e1f0dd70abcb4fceabbc43412e43ad4b_0.geojson", what = "sp")
 
-boundaries_income <- boundaries@data %>% 
-  left_join(data, by = c("Gemeentecode" = "statcode"))
+#boundaries_income <- boundaries@data %>% 
+#  left_join(data, by = c("Gemeentecode" = "statcode")) results in a dataframe
 
 
-boundaries_income <- geo_join(boundaries, data, "Gemeentecode", "statcode", how = "left")
+boundaries_income <- geo_join(boundaries, data, "Gemeentecode", "WijkenEnBuurten", how = "left") # results in a Polygon Object
 
 # include Leistert data
 
@@ -98,7 +101,6 @@ boundaries_income <- geo_join(boundaries_income, Leistert_df_gemeente, "Gemeente
 
 # using shiny
 
-
 library(shiny)
 
 ui <- fluidPage(
@@ -125,7 +127,11 @@ ui <- fluidPage(
       
       selectInput(inputId = "facility",
                   label = "Choose Facility Type",
-                  choices = c("TH", "TP", "BUN", "CH" , "HT", "SP", "JP"))
+                  choices = c("TH", "TP", "BUN", "CH" , "HT", "SP", "JP")),
+    p("Made with", a("Shiny.",
+                     href = "http://shiny.rstudio.com"
+    )),
+    img(src="Shiny_Logo.png")
     ),
     mainPanel(
       tabsetPanel(
@@ -172,7 +178,7 @@ server <- function(input, output, session) {
     NL_pal <- colorNumeric("Blues", domain = boundaries_income@data$GemiddeldInkomenPerInwoner_66)
     NL_pal_2 <- colorNumeric("YlGn", domain = boundaries_income@data$HuishoudensTotaal_28)
     NL_pal_3 <- colorNumeric("Reds", domain = boundaries_income@data$AantalInwoners_5)
-    NL_pal_4 <- colorNumeric("Greens", domain = boundaries_income@data$number_of_visitors)
+    NL_pal_4 <- colorNumeric("Greens", domain = boundaries_income@data$number_of_visitors) # option to filter for year - right now it is aggregated
     
     popup_inkom = str_c("<strong>", boundaries_income$Gemeentenaam, "</strong>", "<br/>", "Mean Income: ",
                         boundaries_income$GemiddeldInkomenPerInwoner_66) %>% map(htmltools::HTML)
@@ -389,10 +395,10 @@ output$plot4 <- renderPlot({
 })
    
  
-  # plot age distribution per ZIP Code 
+  # plot age distribution per Gemeente 
   
 data_age <- data %>% 
-  select("WijkenEnBuurten","Gemeentenaam_1",
+  select("Gemeentenaam_1",
          "SoortRegio_2", "AantalInwoners_5", 
          "k_0Tot15Jaar_8", "k_15Tot25Jaar_9", 
          "k_25Tot45Jaar_10", "k_45Tot65Jaar_11",
@@ -423,25 +429,25 @@ data_age_long <- data_age %>%
   select(Gemeentenaam_1, k_0Tot15Jaar_8:k_65JaarOfOuder_12) %>% 
   gather(key = "Age_Group", value = "Aantal", -Gemeentenaam_1)
 
-#data_age_long$Age_Group <- as.character(data_age_long$Age_Group)
-#
-#library(DataCombine)
-#
-#Replaces <- data.frame(from = c("k_0Tot15Jaar_8", "k_15Tot25Jaar_9", "k_25Tot45Jaar_10",
-#                                "k_45Tot65Jaar_11", "k_65JaarOfOuder_12"), to = c("0-15",
-#                                "15-25", "25-45", "45-65", ">65")) 
-#
-#data_age_long <- FindReplace(data = data_age_long, Var = "Age_Group", replaceData = Replaces,
-#                             from = "from", to = "to", exact = FALSE)
-
 
 # change names of age groups
 
-data_age_long$Age_Group <- str_replace_all(data_age_long$Age_Group, "k_0Tot15Jaar_8", "0-15")
-data_age_long$Age_Group <- str_replace_all(data_age_long$Age_Group, "k_15Tot25Jaar_9", "15-25")
-data_age_long$Age_Group <- str_replace_all(data_age_long$Age_Group, "k_25Tot45Jaar_10", "25-45")
-data_age_long$Age_Group <- str_replace_all(data_age_long$Age_Group, "k_45Tot65Jaar_11", "45-65")
-data_age_long$Age_Group <- str_replace_all(data_age_long$Age_Group, "k_65JaarOfOuder_12", ">65")
+# shorter option
+data_age_long$Age_Group %<>% #this pipe already assigns dataframe instead of writing it out
+  gsub("k_0Tot15Jaar_8", "0-15", .) %>% #like data_age_long$Age_Group <- data_age_long$Age_Group %>% ...
+  gsub("k_15Tot25Jaar_9", "15-25", .) %>% 
+  gsub("k_25Tot45Jaar_10", "25-45", .) %>% 
+  gsub("k_45Tot65Jaar_11", "45-65", .) %>% 
+  gsub("k_65JaarOfOuder_12", ">65", .)
+
+# longer option 
+
+#data_age_long$Age_Group <- str_replace_all(data_age_long$Age_Group, "k_0Tot15Jaar_8", "0-15")
+#data_age_long$Age_Group <- str_replace_all(data_age_long$Age_Group, "k_15Tot25Jaar_9", "15-25")
+#data_age_long$Age_Group <- str_replace_all(data_age_long$Age_Group, "k_25Tot45Jaar_10", "25-45")
+#data_age_long$Age_Group <- str_replace_all(data_age_long$Age_Group, "k_45Tot65Jaar_11", "45-65")
+#data_age_long$Age_Group <- str_replace_all(data_age_long$Age_Group, "k_65JaarOfOuder_12", ">65")
+
 
 # plot age distribution on Gemeente Level
 
@@ -467,3 +473,4 @@ updateSelectizeInput(session, 'Gemeente', choices = data_age_long$Gemeentenaam_1
 }
 
 shinyApp(ui, server)
+
