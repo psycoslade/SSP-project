@@ -24,6 +24,7 @@ library(lubridate)
 library(stringr)
 library(htmlwidgets)
 library(scales)
+library(shinythemes)
 
 # preparing the data
 
@@ -103,7 +104,7 @@ boundaries_income <- geo_join(boundaries_income, Leistert_df_gemeente, "Gemeente
 
 library(shiny)
 
-ui <- fluidPage(
+ui <- fluidPage(theme = shinytheme("simplex"),
   titlePanel("Limburg Marketing Dashboard"),
   sidebarLayout(
     sidebarPanel(
@@ -128,10 +129,11 @@ ui <- fluidPage(
       selectInput(inputId = "facility",
                   label = "Choose Facility Type",
                   choices = c("TH", "TP", "BUN", "CH" , "HT", "SP", "JP")),
-    p("Made with", a("Shiny.",
+      htmltools::p("Made with", a("Shiny.",
                      href = "http://shiny.rstudio.com"
     )),
-    img(src="Shiny_Logo.png")
+    htmltools::img(src="https://raw.githubusercontent.com/rstudio/hex-stickers/master/PNG/shiny.png",
+                   width = "70px", height = "70px")
     ),
     mainPanel(
       tabsetPanel(
