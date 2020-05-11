@@ -125,6 +125,10 @@ ui <- fluidPage(theme = shinytheme("simplex"),
                     label = "Show shortest average stays",
                     value = FALSE,
                     width = '100%'),
+      checkboxInput(inputId = "compare_years",
+                    label = "Compare all years",
+                    value = FALSE,
+                    width = "100%"),
       
       selectInput(inputId = "facility",
                   label = "Choose Facility Type",
@@ -154,16 +158,19 @@ ui <- fluidPage(theme = shinytheme("simplex"),
                  conditionalPanel(condition = "input.shortest_stays == 1",
                                               plotOutput("plot2_short")
                                               ),
-               splitLayout(cellWidths = c("65%", "35%"),
-                           plotOutput("plot3"),  plotOutput("plot5"))
+                 uiOutput("plots"), 
+                 width = 10
+                 )
+               
+                           ))
+          
+              
                             
                  ),
                
                )
       )
-    )
-  )
-)
+    
 
 server <- function(input, output, session) {
   
@@ -266,6 +273,7 @@ server <- function(input, output, session) {
     
   })
   
+  
   # show avg stay per Gemeente per year per facility type (longest/shortest)
   # create two dfs -> one for longest and one for shortest average length of stay
   
@@ -363,6 +371,68 @@ output$plot3 <- renderPlot({ggplot(Leistert_df_grouped_4(), mapping = aes(x = mo
     ylab("Number of Visitors")
 
 })
+
+
+# generate df with all years in order to compare visitor numbers
+
+Leistert_df_year_comp <- 
+  Leistert_df %>% 
+  dplyr::group_by(month, year) %>% 
+    tally()
+
+Leistert_df_year_comp$month <- as.numeric(Leistert_df_year_comp$month)
+
+#ggplot(Leistert_df_year_comp, aes(x = month, y = n, col= year)) + 
+#  geom_line() +
+#  scale_x_discrete(name ="month", 
+#                   limits=seq(1:12)) +
+#  ylab("Number of Visitors") +
+#  ggtitle("Number of Visitors Comparison")
+
+output$plot6 <- renderPlot({
+  ggplot(data = Leistert_df_year_comp, aes(x = month, y = n, col= year)) +
+    geom_line(size=1.6) +
+    scale_x_discrete(name ="month", 
+                     limits=seq(1:12)) +
+    ylab("Number of Visitors") +
+    ggtitle("Number of Visitors Comparison") +
+    theme_bw() +
+    # Set the entire chart region to a light gray color
+    theme(panel.background=element_rect(fill="#F0F0F0")) +
+    theme(plot.background=element_rect(fill="#F0F0F0")) +
+    theme(panel.border=element_rect(colour="#F0F0F0")) +
+    # Format the grid
+    theme(panel.grid.major=element_line(colour="#D0D0D0",size=.75)) +
+    theme(axis.ticks=element_blank()) +
+    # Big bold line at y=0
+    geom_hline(yintercept=0,size=1.2,colour="#535353")
+  
+})
+
+###
+
+# show different plots depending on checkbox input
+
+output$plots <- renderUI({
+  if(input$compare_years){
+    fluidRow(
+      column(8, div(id="col_left", plotOutput("plot6"))),
+      column(4, div(id="col_right", plotOutput("plot5")))
+    )
+  }else{
+    fluidRow(
+      column(8, div(id="col_left", plotOutput("plot3"))),
+      column(4, div(id="col_right", plotOutput("plot5")))
+    )
+
+  }
+})
+
+
+
+
+###
+
 
 # as.numeric(gsub(",", ".", Percentage)) change commas to periods
 # then calculate label positions
