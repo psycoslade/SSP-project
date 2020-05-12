@@ -7,35 +7,40 @@ setwd("/Users/Daniel/Documents/Master/Studium/1. Semester/Period 4/Smart Service
 
 # packages
 
-library(leaflet)
-library(leaflet.extras)
-library(ggmap)
-library(cbsodataR)
-library(tidyverse)
-library(sf)
-library(sp)
-library(geojsonio)
-library(tigris)
-library(ggmap)
-library(DT)
-library(xlsx)
-library(data.table)
-library(lubridate)
-library(stringr)
-library(htmlwidgets)
-library(scales)
-library(shinythemes)
+packages <- c("leaflet", "leaflet.extras", "ggmap", "cbsodataR", "tidyverse", "sf",
+              "sp", "geojsonio", "tigris", "DT", "xlsx", "lubridate", "stringr", "htmlwidgets",
+              "htmlwidgets", "scales", "shinythemes", "shiny", "readxl", "plotly")
+
+lapply(packages, require, character.only = TRUE)
+
+#library(leaflet)
+#library(leaflet.extras)
+#library(ggmap)
+#library(cbsodataR)
+#library(tidyverse)
+#library(sf)
+#library(sp)
+#library(geojsonio)
+#library(tigris)
+#library(DT)
+#library(xlsx)
+#library(data.table)
+#library(lubridate)
+#library(stringr)
+#library(htmlwidgets)
+#library(scales)
+#library(shinythemes)
 
 # preparing the data
 
 # search CBS data
 
-df_cbs_toc <- cbs_get_toc() %>% filter(str_detect(Title, "Kerncijfers"))
+#df_cbs_toc <- cbs_get_toc() %>% filter(str_detect(Title, "Kerncijfers"))
 
 
 # Find out which columns are available
-metadata <- cbs_get_meta("83765NED")
-print(metadata$DataProperties$Key)
+#metadata <- cbs_get_meta("83765NED")
+#print(metadata$DataProperties$Key)
 
 data <- cbs_get_data("83765NED", 
                      select=c("WijkenEnBuurten","Gemeentenaam_1", "SoortRegio_2", 
@@ -102,8 +107,6 @@ boundaries_income <- geo_join(boundaries_income, Leistert_df_gemeente, "Gemeente
 
 # using shiny
 
-library(shiny)
-
 ui <- fluidPage(theme = shinytheme("simplex"),
   titlePanel("Limburg Marketing Dashboard"),
   sidebarLayout(
@@ -133,6 +136,14 @@ ui <- fluidPage(theme = shinytheme("simplex"),
       selectInput(inputId = "facility",
                   label = "Choose Facility Type",
                   choices = c("TH", "TP", "BUN", "CH" , "HT", "SP", "JP")),
+      sliderInput(inputId = "income_range",
+                  label = "Average Income:",
+                  min = 0, max = 90000,
+                  value = c(0,20000),
+                  step = 100,
+                  pre = "€"),
+  #    textOutput("SliderText"),
+    
       htmltools::p("Made with", a("Shiny.",
                      href = "http://shiny.rstudio.com"
     )),
@@ -162,15 +173,16 @@ ui <- fluidPage(theme = shinytheme("simplex"),
                  width = 10
                  )
                
-                           ))
+                           ),
+      tabPanel("Analytics",
+               plotOutput("plot7"))
+      )
           
               
                             
                  ),
-               
                )
-      )
-    
+)
 
 server <- function(input, output, session) {
   
@@ -539,10 +551,136 @@ output$plot5 <- renderPlot({
 
   }) 
 
+# "Analytics" part
+
+df_kwb <- read_excel(path = "kwb-2017.xls", sheet = 1)
+
+
+# join both dfs in order to get Regio Name
+
+data_new <- data %>% 
+  left_join(select(df_kwb, gwb_code_10, regio, a_inw, a_man, a_vrouw), by= c("WijkenEnBuurten" = "gwb_code_10"))
+
+# join data with Leistert_df to bring Regio Name 
+
+Leistert_df_test <- Leistert_df %>% 
+  inner_join(select(data_new, regio, GemiddeldInkomenPerInwoner_66, a_inw, a_man, a_vrouw), by = c("Buurt_Name" = "regio"))
+
+# convert column of ls to numeric
+
+# first replace comma by period
+
+cols_name <- c("avontuurzoekers", "plezierzoekers", "harmoniezoekers", "verbindingzoekers",
+               "rustzoekers", "inzichtzoekers", "stijlzoekers", "a_inw", "a_man", "a_vrouw")
+
+Leistert_df_test[cols_name] <- apply(Leistert_df_test[cols_name], 2, function(y) as.numeric(gsub(",", ".", y)))
+
+
+Leistert_df_test[cols_name] <- sapply(Leistert_df_test[cols_name], as.numeric)
+sapply(Leistert_df_test, class)
+
+
+# generate column with absolute values of lifestyles
+
+Leistert_df_test_ls_abs <- Leistert_df_test %>% 
+  mutate(avontuur_abs = round((avontuurzoekers/100) * a_inw, 0),
+         plezier_abs = round((plezierzoekers/100) * a_inw, 0),
+         harmonie_abs = round((harmoniezoekers/100) * a_inw, 0),
+         verbinding_abs = round((verbindingzoekers/100) * a_inw, 0),
+         rust_abs = round((rustzoekers/100) * a_inw, 0),
+         inzicht_abs = round((inzichtzoekers/100) * a_inw, 0),
+         stijl_abs = round((stijlzoekers/100) * a_inw, 0))
+
+# reduce size of df, keep only columns needed
+
+Leistert_df_ls_small <- Leistert_df_test_ls_abs %>% 
+  select(GemiddeldInkomenPerInwoner_66:stijl_abs, POSTCODE) %>% unique()
+
+# generate dummy variables
+
+# for gender majority
+
+Leistert_df_ls_small_dmmy <- Leistert_df_ls_small %>% 
+  mutate(gender_majority = ifelse(a_man > a_vrouw, 1, 0)) # 1 for men, 0 for women
+
+# for lifestyle majority
+
+#Leistert_df_ls_small_dmmy <- Leistert_df_ls_small %>% 
+#  mutate(ls_majority = apply(Leistert_df_ls_small_dmmy[, 5:11], 1, max))
+
+Leistert_df_ls_small_dmmy <- Leistert_df_ls_small_dmmy %>% 
+  mutate(ls_majority = colnames(Leistert_df_ls_small[, 5:11])[max.col(Leistert_df_ls_small[, 5:11], ties.method="first")],
+         Gemiddeld_Inkomen = GemiddeldInkomenPerInwoner_66 * 1000) %>% select(-GemiddeldInkomenPerInwoner_66)
+
+
+names <- c("gender_majority", "ls_majority")
+Leistert_df_ls_small_dmmy[,names] <- lapply(Leistert_df_ls_small_dmmy[,names], factor)
+
+# only keep complete cases
+
+Leistert_df_ls_small_dmmy <- Leistert_df_ls_small_dmmy[complete.cases(Leistert_df_ls_small_dmmy), ]
+
+# visualise average income, Citizens per Buurt and gender as well ls majority
+
+# filter for income brackets
+
+Leistert_df_ls_small_dmmy_fltrd <- reactive({Leistert_df_ls_small_dmmy %>% 
+    filter(Gemiddeld_Inkomen %in% c(input$income_range[1]:input$income_range[2]))
+  })
+
+output$plot7 <- renderPlot({ggplot(data = Leistert_df_ls_small_dmmy_fltrd(), mapping = aes(x = Gemiddeld_Inkomen, y = a_inw,shape=gender_majority, color=ls_majority, label = POSTCODE)) +
+    geom_point() +
+  #  geom_text(aes(label=POSTCODE)) +
+    scale_y_log10() +
+    xlab("Average Income Per Inhabitant") +
+    ylab("Number of Inhabitants") +
+    scale_color_discrete(name  ="Majority Lifestyle",
+                         breaks=c("avontuur_abs", "harmonie_abs", "verbinding_abs",
+                                  "plezier_abs", "rust_abs", "inzicht_abs", "stijl_abs"),
+                         labels=c("Avontuurzoekers", "Harmoniezoekers", "Verbindingzoekers",
+                                  "Plezierzoekers", "Rustzoekers", "Inzichtzoekers", "Stijlzoekers")) +
+    scale_shape_discrete(name  ="Majority Gender",
+                         breaks=c("0", "1"),
+                         labels=c("Woman", "Man"))
+ }) 
+  
+  
+# plotly option
+
+#output$plot7 <- renderPlotly({
+#  print(
+#  ggplotly(ggplot(data = Leistert_df_ls_small_dmmy_fltrd(), mapping = aes(x = Gemiddeld_Inkomen, y = a_inw,shape=gender_majority, color=ls_majority, label = POSTCODE)) +
+#             geom_point() +
+#             scale_y_log10() +
+#             xlab("Average Income Per Inhabitant") +
+#             ylab("Number of Inhabitants") +
+#             scale_color_discrete(name  ="Majority Lifestyle",
+#                                  breaks=c("avontuur_abs", "harmonie_abs", "verbinding_abs",
+#                                           "plezier_abs", "rust_abs", "inzicht_abs", "stijl_abs"),
+#                                  labels=c("Avontuurzoekers", "Harmoniezoekers", "Verbindingzoekers",
+#                                           "Plezierzoekers", "Rustzoekers", "Inzichtzoekers", "Stijlzoekers")) +
+#             scale_shape_discrete(name  ="Majority Gender",
+#                                  breaks=c("0", "1"),
+#                                  labels=c("Woman", "Man")), tooltip = "label"
+#  )
+#  )
+#})
+
+
+
+#my_range <- reactive({
+#  cbind(input$income_range[1],input$income_range[2])
+#})
+
+# output$SliderText <- renderText({my_range()})
+
+
+
 updateSelectizeInput(session, 'Gemeente', choices = data_age_long$Gemeentenaam_1, server = TRUE)
 
 
 }
 
 shinyApp(ui, server)
+
 
