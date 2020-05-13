@@ -9,7 +9,7 @@ setwd("/Users/Daniel/Documents/Master/Studium/1. Semester/Period 4/Smart Service
 
 packages <- c("leaflet", "leaflet.extras", "ggmap", "cbsodataR", "tidyverse", "sf",
               "sp", "geojsonio", "tigris", "DT", "xlsx", "lubridate", "stringr", "htmlwidgets",
-              "htmlwidgets", "scales", "shinythemes", "shiny", "readxl", "plotly")
+              "htmlwidgets", "scales", "shinythemes", "shiny", "readxl", "plotly", "data.table")
 
 lapply(packages, require, character.only = TRUE)
 
@@ -175,7 +175,7 @@ ui <- fluidPage(theme = shinytheme("simplex"),
                
                            ),
       tabPanel("Analytics",
-               plotOutput("plot7"))
+               plotlyOutput("plot7"))
       )
           
               
@@ -331,7 +331,7 @@ server <- function(input, output, session) {
     
     
     ggplot(Leistert_df_grouped_2_short(), mapping = aes(x = reorder(Gemeente_Name, -avg_stay), y = avg_stay, fill = avg_stay)) +
-      scale_fill_gradient2(low="blue", high="red", space="Lab") +
+      scale_fill_gradient2(low="snow3", mid = "blue", high="red", space="Lab") +
       geom_bar(stat = "identity") +
       ggtitle(paste("Shortest Average Length of Stay per Gemeente in", input$year, "for", input$facility)) +
       geom_text(aes(label = avg_stay, vjust = 1.5), color = "white") +
@@ -375,7 +375,7 @@ midpoint <- Leistert_df %>% group_by(year, month) %>% tally()
 mid <- mean(midpoint$n)
 
 output$plot3 <- renderPlot({ggplot(Leistert_df_grouped_4(), mapping = aes(x = month, y = n, fill = n)) +
-    scale_fill_gradient2(low="snow3", mid="green", high="darkgreen", space="Lab", midpoint = mid) +
+    scale_fill_gradient2(low="#CCE5FF", mid="#66B2FF", high="#006666", space="Lab", midpoint = mid) +
     geom_bar(stat = "identity") +
     geom_text(aes(label = n, vjust = 1.5), color = "white") +
     ggtitle(paste("Monthly Visitors in total in", input$year)) +
@@ -583,18 +583,18 @@ sapply(Leistert_df_test, class)
 # generate column with absolute values of lifestyles
 
 Leistert_df_test_ls_abs <- Leistert_df_test %>% 
-  mutate(avontuur_abs = round((avontuurzoekers/100) * a_inw, 0),
-         plezier_abs = round((plezierzoekers/100) * a_inw, 0),
-         harmonie_abs = round((harmoniezoekers/100) * a_inw, 0),
-         verbinding_abs = round((verbindingzoekers/100) * a_inw, 0),
-         rust_abs = round((rustzoekers/100) * a_inw, 0),
-         inzicht_abs = round((inzichtzoekers/100) * a_inw, 0),
-         stijl_abs = round((stijlzoekers/100) * a_inw, 0))
+  mutate(Avontuurzoekers = round((avontuurzoekers/100) * a_inw, 0),
+         Plezierzoekers = round((plezierzoekers/100) * a_inw, 0),
+         Harmoniezoekers = round((harmoniezoekers/100) * a_inw, 0),
+         Verbindingzoekers = round((verbindingzoekers/100) * a_inw, 0),
+         Rustzoekers = round((rustzoekers/100) * a_inw, 0),
+         Inzichtzoekers = round((inzichtzoekers/100) * a_inw, 0),
+         Stijlzoekers = round((stijlzoekers/100) * a_inw, 0))
 
 # reduce size of df, keep only columns needed
 
 Leistert_df_ls_small <- Leistert_df_test_ls_abs %>% 
-  select(GemiddeldInkomenPerInwoner_66:stijl_abs, POSTCODE) %>% unique()
+  select(GemiddeldInkomenPerInwoner_66:Stijlzoekers, POSTCODE) %>% unique()
 
 # generate dummy variables
 
@@ -610,7 +610,8 @@ Leistert_df_ls_small_dmmy <- Leistert_df_ls_small %>%
 
 Leistert_df_ls_small_dmmy <- Leistert_df_ls_small_dmmy %>% 
   mutate(ls_majority = colnames(Leistert_df_ls_small[, 5:11])[max.col(Leistert_df_ls_small[, 5:11], ties.method="first")],
-         Gemiddeld_Inkomen = GemiddeldInkomenPerInwoner_66 * 1000) %>% select(-GemiddeldInkomenPerInwoner_66)
+         Gemiddeld_Inkomen = GemiddeldInkomenPerInwoner_66 * 1000,
+         Inwoner = a_inw, Mens = a_man, Vrouwen = a_vrouw) %>% select(-GemiddeldInkomenPerInwoner_66)
 
 
 names <- c("gender_majority", "ls_majority")
@@ -628,43 +629,43 @@ Leistert_df_ls_small_dmmy_fltrd <- reactive({Leistert_df_ls_small_dmmy %>%
     filter(Gemiddeld_Inkomen %in% c(input$income_range[1]:input$income_range[2]))
   })
 
-output$plot7 <- renderPlot({ggplot(data = Leistert_df_ls_small_dmmy_fltrd(), mapping = aes(x = Gemiddeld_Inkomen, y = a_inw,shape=gender_majority, color=ls_majority, label = POSTCODE)) +
-    geom_point() +
-  #  geom_text(aes(label=POSTCODE)) +
-    scale_y_log10() +
-    xlab("Average Income Per Inhabitant") +
-    ylab("Number of Inhabitants") +
-    scale_color_discrete(name  ="Majority Lifestyle",
-                         breaks=c("avontuur_abs", "harmonie_abs", "verbinding_abs",
-                                  "plezier_abs", "rust_abs", "inzicht_abs", "stijl_abs"),
-                         labels=c("Avontuurzoekers", "Harmoniezoekers", "Verbindingzoekers",
-                                  "Plezierzoekers", "Rustzoekers", "Inzichtzoekers", "Stijlzoekers")) +
-    scale_shape_discrete(name  ="Majority Gender",
-                         breaks=c("0", "1"),
-                         labels=c("Woman", "Man"))
- }) 
+#output$plot7 <- renderPlot({ggplot(data = Leistert_df_ls_small_dmmy_fltrd(), mapping = aes(x = Gemiddeld_Inkomen, y = a_inw, shape=gender_majority, color=ls_majority, label = POSTCODE)) +
+#    geom_point() +
+#  #  geom_text(aes(label=POSTCODE)) +
+#    scale_y_log10() +
+#    xlab("Average Income Per Inhabitant") +
+#    ylab("Number of Inhabitants") +
+#    scale_color_discrete(name  ="Majority Lifestyle",
+#                         breaks=c("avontuur_abs", "harmonie_abs", "verbinding_abs",
+#                                  "plezier_abs", "rust_abs", "inzicht_abs", "stijl_abs"),
+#                         labels=c("Avontuurzoekers", "Harmoniezoekers", "Verbindingzoekers",
+#                                  "Plezierzoekers", "Rustzoekers", "Inzichtzoekers", "Stijlzoekers")) +
+#    scale_shape_discrete(name  ="Majority Gender",
+#                         breaks=c("0", "1"),
+#                         labels=c("Woman", "Man"))
+# }) 
   
   
 # plotly option
 
-#output$plot7 <- renderPlotly({
-#  print(
-#  ggplotly(ggplot(data = Leistert_df_ls_small_dmmy_fltrd(), mapping = aes(x = Gemiddeld_Inkomen, y = a_inw,shape=gender_majority, color=ls_majority, label = POSTCODE)) +
-#             geom_point() +
-#             scale_y_log10() +
-#             xlab("Average Income Per Inhabitant") +
-#             ylab("Number of Inhabitants") +
-#             scale_color_discrete(name  ="Majority Lifestyle",
-#                                  breaks=c("avontuur_abs", "harmonie_abs", "verbinding_abs",
-#                                           "plezier_abs", "rust_abs", "inzicht_abs", "stijl_abs"),
-#                                  labels=c("Avontuurzoekers", "Harmoniezoekers", "Verbindingzoekers",
-#                                           "Plezierzoekers", "Rustzoekers", "Inzichtzoekers", "Stijlzoekers")) +
-#             scale_shape_discrete(name  ="Majority Gender",
-#                                  breaks=c("0", "1"),
-#                                  labels=c("Woman", "Man")), tooltip = "label"
-#  )
-#  )
-#})
+output$plot7 <- renderPlotly({
+  #print(
+  ggplotly(ggplot(data = Leistert_df_ls_small_dmmy_fltrd(), mapping = aes(x = Gemiddeld_Inkomen, y = Inwoner, color=ls_majority, label = POSTCODE)) + #shape=gender_majority,
+             geom_point() +
+            # geom_smooth() + weird result obviously
+             scale_y_log10() +
+             xlab("Average Income Per Inhabitant") +
+             ylab("Number of Inhabitants") +
+             theme(legend.position="bottom") +
+             scale_color_discrete(name="Majority Lifestyle", # plotly ignores legend modification (?)
+                                  breaks=c("avontuur_abs", "harmonie_abs", "verbinding_abs",
+                                           "plezier_abs", "rust_abs", "inzicht_abs", "stijl_abs"),
+                                  labels=c("Avontuurzoekers", "Harmoniezoekers", "Verbindingzoekers",
+                                           "Plezierzoekers", "Rustzoekers", "Inzichtzoekers", "Stijlzoekers")),
+           tooltip = c("label", "x", "y")) %>%
+    layout(legend = list(
+      orientation = "v"))
+})
 
 
 
