@@ -11,7 +11,7 @@ plot1.3 <- ggplot(DataFinal, aes(mean_income)) +
 plot1.4 <- ggplot(DataFinal, aes(mean_income)) + 
   geom_point(aes(y = connection , colour = "Connection")) 
 plot1.5 <- ggplot(DataFinal, aes(mean_income)) + 
-  geom_point(aes(y = rest , colour = "Yellow"))
+  geom_point(aes(y = rest , colour = "Rest"))
 plot1.6 <- ggplot(DataFinal, aes(mean_income)) + 
   geom_point(aes(y = insight , colour = "Insight"))
 plot1.7 <- ggplot(DataFinal, aes(mean_income)) + 
