@@ -144,14 +144,17 @@ ui <- shinyUI(navbarPage("Limburg Marketing Dashboard",
                    ),
                    
                    tabPanel("Map",
-                            sidebarPanel(
+                            sidebarPanel(htmltools::p("This map feature enables to derive insights about different characteristics of the regional
+                                                      districts in the Netherlands. This includes the mean income, the number of inhabitants,
+                                                      the number of households, as well as the cumulated number of visitors from different regions."),
                               htmltools::p("Made with", a("Shiny.",
                                                           href = "http://shiny.rstudio.com"
                             )),
                             htmltools::img(src="https://raw.githubusercontent.com/rstudio/hex-stickers/master/PNG/shiny.png",
-                                           width = "70px", height = "70px")),
+                                           width = "70px", height = "70px"),
+                            width = 2),
                             
-                            mainPanel(uiOutput("leaf"))
+                            mainPanel(uiOutput("leaf"), width = 10)
                    ),
                    tabPanel("Table",
                             sidebarPanel(selectizeInput(inputId = "ZIP",
@@ -166,10 +169,11 @@ ui <- shinyUI(navbarPage("Limburg Marketing Dashboard",
                                                                      href = "http://shiny.rstudio.com"
                                          )),
                                          htmltools::img(src="https://raw.githubusercontent.com/rstudio/hex-stickers/master/PNG/shiny.png",
-                                                        width = "70px", height = "70px")
+                                                        width = "70px", height = "70px"),
+                                         width = 2
                                          ),
                             mainPanel(fluidRow(column(
-                              DT::dataTableOutput("table"), tableOutput("table2"), width = 11)
+                              DT::dataTableOutput("table"), tableOutput("table2"), width = 12)
                             )
                    ),
                    ),
@@ -206,7 +210,8 @@ ui <- shinyUI(navbarPage("Limburg Marketing Dashboard",
                                                                      href = "http://shiny.rstudio.com"
                                          )),
                                          htmltools::img(src="https://raw.githubusercontent.com/rstudio/hex-stickers/master/PNG/shiny.png",
-                                                        width = "70px", height = "70px")
+                                                        width = "70px", height = "70px"),
+                                         width = 2
                                          ),
                             mainPanel(fluidRow(
                               splitLayout(cellWidths = c("65%", "35%"),
@@ -218,9 +223,9 @@ ui <- shinyUI(navbarPage("Limburg Marketing Dashboard",
                               conditionalPanel(condition = "input.shortest_stays == 1",
                                                plotOutput("plot2_short")
                               ),
-                              uiOutput("plots"), 
-                              width = 10
-                            )
+                              uiOutput("plots")
+                            ), width = 10
+                            
                    )),
                    
                    
@@ -233,7 +238,7 @@ ui <- shinyUI(navbarPage("Limburg Marketing Dashboard",
                                                      pre = "€"),
                                          checkboxGroupInput(inputId = "reg_plot", 
                                                             choices = list("Regression 1", "Regression 2"),
-                                                            label = "Show plots:",
+                                                            label = "Show results:",
                                                             selected = "Regression 1"
                                                             ),
                               htmltools::p("Made with", a("Shiny.",
