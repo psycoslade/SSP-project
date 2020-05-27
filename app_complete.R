@@ -17,23 +17,22 @@ sapply(packages, require, character.only = TRUE)
 # ensure that all required packages are installed
 
 if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
-  install.packages(setdiff(packages, rownames(installed.packages())))  
+  install.packages(setdiff(packages, rownames(installed.packages())))
 }
 
 ###
 
 ### Manu's part
 
-# prepare the data 
+# prepare the data
 
 income_PC4 <- read.csv("Income_per_PC4.csv")
-income_PC4$mean_income <- income_PC4$mean_income*1000
+income_PC4$mean_income <- income_PC4$mean_income * 1000
 
 
 lifestyles_PC4 <- read.csv("PC4_lifestyles.csv")
 income_PC4 <- left_join(income_PC4, lifestyles_PC4, by = "PC4")
-income_PC4[is.na(income_PC4)] <- 0 
-
+income_PC4[is.na(income_PC4)] <- 0
 
 # Dani's part
 
@@ -237,7 +236,7 @@ ui <- shinyUI(navbarPage("Limburg Marketing Dashboard",
                                                      step = 100,
                                                      pre = "€"),
                                          checkboxGroupInput(inputId = "reg_plot", 
-                                                            choices = list("Regression 1", "Regression 2"),
+                                                            choices = list("Regression 1", "Regression 2", "Regression 3"),
                                                             label = "Show results:",
                                                             selected = "Regression 1"
                                                             ),
@@ -250,16 +249,22 @@ ui <- shinyUI(navbarPage("Limburg Marketing Dashboard",
                               plotlyOutput("plot7"),
                               conditionalPanel(
                                 condition = "input.reg_plot == 'Regression 1'",
-                                uiOutput('plot_reg')
+                                uiOutput("plot_reg")
                               ),
                               conditionalPanel(
                                 condition = "input.reg_plot == 'Regression 2'",
                                 uiOutput("plot_reg2")
-                              )
+                              ),
+                              conditionalPanel(
+                                condition = "input.reg_plot == 'Regression 3'",
+                                uiOutput("plot_reg3")
                             )
                             
 )
-)))
+)
+)
+)
+)
 
 
 
@@ -875,6 +880,13 @@ output$plot9 <- renderPlot(
   ylab('Duration of Stay') + theme(axis.text.x = element_text(angle = 45, hjust = 1))
 )
 
+output$plot10 <- renderPlot(
+  ggplot(data = Leistert_df_ls_small_dmmy_shrt, mapping = aes(x = Duration_of_Stay, y = Gemiddeld_Inkomen, color=ls_majority)) +
+  geom_point() +
+  xlab('Duration of Stay') +
+  ylab('Mean Income') # + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+)
+
 # regression output mean income
 
 DataFinal <- read.csv("data.csv", header = TRUE, sep = "," )
@@ -893,6 +905,12 @@ output$summary_2 <- renderPrint({
   summary(fit)
 })
 
+# regression output duration of stay ~ mean income
+output$summary_3 <- renderPrint({
+  fit <- lm(Duration.of.Stay ~ mean_income, data=DataFinal_slct)
+  summary(fit)
+})
+
 
 # show different plots depending on checkbox input
 
@@ -908,6 +926,13 @@ output$plot_reg2 <- renderUI({
     fluidRow(
       column(6, div(id="col_left", plotOutput("plot9"))),
       column(6, div(id="col_right", verbatimTextOutput("summary_2")))
+    )
+  })
+
+output$plot_reg3 <- renderUI({
+    fluidRow(
+      column(6, div(id="col_left", plotOutput("plot10"))),
+      column(6, div(id="col_right", verbatimTextOutput("summary_3")))
     )
   })
 
