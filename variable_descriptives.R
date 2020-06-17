@@ -136,3 +136,4 @@ stargazer(data_gemeente, type = "text",
      digits = 1, title = "Descriptive statistics",
      digit.separator = ".", decimal.mark = ",")
 # change type to "latex" to include in the report
+#
